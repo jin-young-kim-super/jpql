@@ -1,0 +1,73 @@
+Projection : SELECT 절의 조회할 대상(엔티티, 임베디드 타입, 스칼라 타입(숫자, 문자등 기본 데이터 타입)
+
+엔티티 프로젝션 시 주의점
+ex)
+List<Team> findTeams = entityManager.createQuery("select m.team from Member m", Team.class)
+        .getResultList();
+위 쿼리의 경우, Member의 FK로 Team을 join하는 쿼리문이 실행이 된다.
+그런데 select m.team from Member m만을 보면 이게 join문이 실행되는 지 바로 파악이 불가능하다.
+Member와 Team의 연관 관계 매핑을 알고 있는 사람은 join문 실행이 예측이 가능하지만, 프로젝트 규모가 커지거나
+JPA를 모르는 많은 사람과 협업을 해야 하는 경우는 되도록 JQPL과 SQL문이 비슷해지도록 JPQL을 작성하는 것이 중요하다.
+※특히 join문 같은 경우는 튜닝할 대상이 될 수도 있고 하니 되도록이면 SQL문과 가깝게 실행하도록 하자.
+그래서 join이 실행되는 경우는 join을 jpql에 명시적으로 박는 게 좋다.
+
+개선 버전)
+String jpql = "select t from Member m join Team t";
+List<Team> findTeams = entityManager.createQuery(jpql, Team.class)
+        .getResultList();
+-> 변화되는 SQL문은 개선 이전 버전과 똑같다.
+
+Query 타입(반환되는 데이터 타입이 명확하지 않을 떄)
+ex)
+List resultList = entityManager.createQuery("select m.username, m.age from Member m")
+        .getResultList();
+위 코드에 어디에서 Query 타입이 반환되는지 알아 보자.
+
+// 1차적으로 여기에서 Query 타입으로 반환
+Query query = entityManager.createQuery("select m.username, m.age from Member m")
+
+// 2차적으로 ArrayList를 반환
+// -> 이떄 List는 인터페이스이며, ArrayList는 List 인터페이스를 상속받고 있다.
+List resultList = query.getResultList();
+
+// 형 변환
+Object o = resultList.get(0); // DB 결과의 첫 행
+Object[] result = (Object[]) o; // 업 캐스팅
+-> List의 구조를 알아야 한다. List는 즉 List<String>같은 반환 타입을 적어 주지 않으면 당연히 get(0)를 했을 때 어떤 데이터 타입으로 반환해야 될지 모른다.
+그래서 모든 클래스의 부모 객체인 Object로 일단 반환을 한다.
+interface List<E> {
+    E get(int index);
+}
+
+Object[] 배열로 반환되는 이유 : JPQL에서 select에 여러 값(엔티티 포함)을 projection 했을 때는
+getReulstList() 시 Object[] 배열에 그 여러 값을 담아, 그걸 1행으로 여긴다.
+그래서 getResultLIst()는 select절에 여러 값을 projection하면 여러개의 Object[] 배열을 List 구현체로 반환을 한다.
+만약 DB 결과가 3행이면 3개의 Object[]을 반환을 한다.
+
+[전체 그림]
+getResultList()
+       ↓
+     List
+       │
+       ├── Object[] {"son", 30}
+       ├── Object[] {"kim", 25}
+       └── Object[] {"lee", 40}
+              ↑
+          get(0)
+              │
+              ↓
+            Object
+              │
+        (Object[]) 캐스팅
+              ↓
+           Object[]
+          /      \
+       [0]        [1]
+        ↓           ↓
+     username      age
+       "son"        30
+
+아래처럼하면 타입 캐스팅 안 해도 된다.
+LIst<Object[]> resultList = em.crateQuery(..).getResultList();
+로 하면 타입 캐스팅이 아예 필요가 없다.
+
