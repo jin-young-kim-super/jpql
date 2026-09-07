@@ -16,44 +16,27 @@ public class JpaMain {
         transaction.begin(); // 트랜잭션 시작
 
         try {
-            Member member = new Member();
-            member.setUsername("member1");
-            member.setAge(10);
-            entityManager.persist(member);
+
+            for(int i = 0; i < 100; i++) {
+                Member member = new Member();
+                member.setUsername("member"+i);
+                member.setAge(i);
+                entityManager.persist(member);
+            }
 
             entityManager.flush();
             entityManager.clear();
 
-            // 엔티티 프로젝션 : 반드시 영속성 컨텍스트에 관리
-            List<Member> findMembers = entityManager.createQuery("select m from Member m", Member.class)
+            // JPA에서는 그 복잡한 페이징을 setFirstResult, setMaxResult, 단 이 2개로 축약했다.
+            // -> 오라클, MSSQL 같은 경우 페이징 작업이 좆 같다고 한다
+            List<Member> resultList = entityManager.createQuery("select m from Member m order by m.age desc", Member.class)
+                    .setFirstResult(1) //　첫 번째에서
+                    .setMaxResults(10) // 10개씩 페이징
                     .getResultList();
-
-            // 엔티티 프로젝션 : 반드시 영속성 컨텍스트에 관리
-            // -> 메모 참고!!!!
-            List<Team> findTeams = entityManager.createQuery("select m.team from Member m", Team.class)
-                    .getResultList();
-
-            // 임베디드 프로젝션 : 영속성 컨텍스트에 관리x
-            List<Address> findAddress = entityManager.createQuery("select o.address from Order o", Address.class)
-                    .getResultList();
-
-            // 스칼라 타입 프로젝션 : 영속성 컨텍스트에 관리x
-            // -> 메모 참고.
-            List resultList = entityManager.createQuery("select m.username, m.age from Member m")
-                    .getResultList();
-
-            Object o = resultList.get(0); // DB 결과의 첫 행
-            Object[] result = (Object[]) o; // 업 캐스팅
-            System.out.println("username=" + result[0]);
-            System.out.println("age = " + result[1]);
-
-            // selct절에 여러 개의 값을 projection하는 경우 젤 깔끔하는 방법
-            List<MemberDto> resultList1 = entityManager.createQuery("select new jpql.MemberDto(m.username,m.age) from Member m", MemberDto.class)
-                    .getResultList();
-            for (MemberDto memberDto : resultList1) {
-                System.out.println("memberDto = " + memberDto);
+            System.out.println("resultList size = " + resultList.size());
+            for (Member member1 : resultList) {
+                System.out.println("member1 = " + member1);
             }
-
 
             transaction.commit();
         } catch (Exception e) {
