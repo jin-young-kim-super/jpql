@@ -1,0 +1,13 @@
+JPQL의 JOIN은 반드시 연관 관계가 매핑된 객체끼리만 가능"했다"(JPQL은 객체의 참조 관계로 JOIN을 하는 문법이기에, 엔티티 매핑이 없으면 애초에 JOIN을 할 수 없었다)
+-> 하이버네이트 5.1부터는 엔티티 매핑이 없는 객체 사이라도 JOIN이 가능하게 되었다. 이때 ON절을 이용해서 반드시 JOIN 조건을 적어 줘야 한다.(ON절을 생략하면 JOIN을 할 수가 없다)
+
+ex) 연관 관계 없는 엔티티 외부 조인(Member와 Team이 연관 관계가 없다고 가정)
+JPQL
+SELECT m, t FROM Member as m LEFT JOIN Team as t ON m.username=t.name // m.username과 t.name으로 연관 관계가 없는 두 엔티티를 JOIN하겠다!!!
+
+ON절의 역할
+1. 엔티티 매핑 관계가 있는 객체
+-> JOIN 대상 필터링
+
+2. 엔티티 매핑 관계가 없는 객체
+-> 어떤 기준으로 JOIN을 할 것이냐!!!(연관 관계가 없으니 PK,FK가 없으니 JOIN 시 DB 입장에서는 JOIN전략을 알 수가 없다)
