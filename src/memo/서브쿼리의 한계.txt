@@ -1,0 +1,27 @@
+서브 쿼리의 한계 : SELECT절과 FROM절에서는 서브 쿼리 사용 불가능
+-> JPA 표준 스펙에서는 WHERE, HAVING절에만 서브 쿼리 사용이 가능(하이버네이트는 SELECT절 지원)
+
+
+ex) FROM절에는 서브 쿼리 사용 불가능x
+jpql : FROM절 서브 쿼리의 예시
+"SELECT mm.age, mm.username FROM (SELECT m.age,m.usernmae FROM Member m) as mm"
+
+해결법
+-> JOIN전략으로 풀 수 있는 경우가 있는데 만약 이게 안 된다면 포기해야 한다고 한다.
+
+ex) FROM절 서브 쿼리 대신 JOIN으로 해결한 경우
+
+SELECT m.username, t.team_name
+FROM Member m
+JOIN (
+    SELECT team_id, team_name
+    FROM Team
+    WHERE team_name = 'TEAM_A'
+) t
+ON m.team_id = t.team_id;
+
+김영한의 JOIN으로 해결하기 싫을 떄 실무 팁
+1. 그냥 NATIVE SQL 사용
+2. JPQL의 결과를 애플리케이션 코드 레벨에서 조작하여 결과적으로 FROM절에 서브 쿼리가 들어 간 것처럼 한다.
+-> Member 문과 Team문 SELECT문, 이 2개의 쿼리문을 실행하여 애플리케이션에서 원하는 결과를 조작
+※가장 좋은 방법은 JOIN으로 해결하는 거고, 그게 안 되면 위 2가지 중 하나!
