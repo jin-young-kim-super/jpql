@@ -1,0 +1,6 @@
+type(i) : 상속 관계 객체 사이에서 사용되며, 원하는 자식 객체를 SELECT하고 싶을 떄 사용(또한 자동 다운 캐스팅 효과도 있다)
+-> 물론 DTYPE이 내부적으로 사용
+
+ex) Item객체가 부모, Book객체가 자식이라는 가정 
+em.createQuery("SELECT i FROM ITEM i WHERE type(i) = BOOK",Item.class)
+.getResultLIst();

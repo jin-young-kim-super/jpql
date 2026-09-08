@@ -1,8 +1,5 @@
 import jakarta.persistence.*;
-import jpql.Address;
-import jpql.Member;
-import jpql.MemberDto;
-import jpql.Team;
+import jpql.*;
 
 import java.util.List;
 
@@ -24,23 +21,26 @@ public class JpaMain {
             Member member = new Member();
             member.setUsername("member1");
             member.setAge(10);
+            member.setMemberType(MemberType.ADMIN);
             member.changeTeam(team);
             entityManager.persist(member);
 
-            // INNER JOIN(INNER 생략 가능)
-            String jpql1 = "select m from Member m inner join m.team t";
-            List<Member> resultList1 = entityManager.createQuery(jpql1, Member.class)
-                    .getResultList();
+            //  JPQL에서 문자열 : 싱글 따옴표
+            //  JPQL에서 불린형 : TRUE, FALSE, true, false
+            //  JPAQL에서 ENUM : 패키지 경로를 전부 명시
+            String jpql = "select m.username, 'HELLO', TRUE FROM Member m WHERE m.memberType = jpql.MemberType.ADMIN";
+            List<Object[]> resultList = entityManager.createQuery(jpql).getResultList();
 
-            // LEFT OUTER JOIN(OUTER 생략 가능)
-            String jpql2 = "select m from Member m left outer join m.team t";
-            List<Member> resultList2 = entityManager.createQuery(jpql2, Member.class)
-                    .getResultList();
+            /**
+             * ENUM의 긴 패키지명이 짜는 날 경우 해결법
+             * -> 바인딩으로 해결
+             */
+//            String jpql = "select m.username, 'HELLO', TRUE FROM Member m WHERE m.memberType = :memberType";
+//            List<Object[]> resultList = entityManager.createQuery(jpql)
+//                    .setParameter("memberType",MemberType.ADMIN)
+//                    .getResultList();
 
-            // THETA JOIN
-            String jpql3 = "select m from Member m , m.team t";
-            List<Member> resultList3 = entityManager.createQuery(jpql3, Member.class)
-                    .getResultList();
+
             entityManager.flush();
             entityManager.clear();
 
