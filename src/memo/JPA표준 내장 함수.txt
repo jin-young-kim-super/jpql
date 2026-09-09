@@ -1,0 +1,117 @@
+JPA 기본 함수
+CONCAT
+SUBSTRING
+TRIM
+LOWER,UPPER
+LENGTH
+LOCATE
+ABS,SQRT,MOD
+SIZE, INDEX
+→ 위 함수가 JPA 내장 함수 리스트이다. 
+
+Q. 만약 DB에 정의한 사용자 정의 함수를 사용하고 싶을 떄는? JPA 입장에서는 DB에 어떤 사용자 함수가 정의돼 있는 지 모르지 않나?
+※실무에서는 JPA 내장 함수 외에 사용자 정의 함수 사용할 일이 너무 많다. JPA 내장 함수는 위 함수들이 전부라서 너무 적다.
+A. 사용하는 DB의 방언 클래스를 상속받고, 사용자 정의 함수를 그 클래스에 등록해서 사용 가능
+
+ex) DB의 사용자 정의 등록 방법
+
+// extends PostgreSQLDialect : JPA가 JPQL로 사용자 정의 함수문을 SQL로 변환할 때 어떤 DB의 SQL로 변환해야 하는 지 알려주기 위함
+public class MyPostgreSQLDialect extends PostgreSQLDialect {
+    public MyPostgreSQLDialect() {
+        super();
+        // 사용자 정의 함수 등록
+        registerFunction("custom_concat",new StandardSQLFunction("custom_concat", StandardBasicTypes.STRING));
+    }
+}
+
+ex) JPQL에서 DB의 사용자 정의 함수 호출 방법
+select 【function('custom_concat, i.name)】 from Item as i
+
+사용자 정의 실행 흐름도
+                 Hibernate
+                     │
+                     ▼
+          PostgreSQLDialect
+                     │
+              ← 상속(extends)
+                     │
+                     ▼
+       MyPostgreSQLDialect
+                     │
+            custom_concat 등록
+                     │
+                     ▼
+JPQL: function('custom_concat', i.name)
+                     │
+                     ▼
+              SQL 생성
+
+
+실무 개발에서는 특정 DB가 제공하는 고유의 내장 함수도 많이 사용한다.
+하이버네이트는 이러한 내장 함수들을 이미 아래와 같이 등록을 해 놓고 있다.
+-> 그러나 결국에는 아래 함수들은 특정 DB에 종속된 함수라서 SQL문도 특정 DB에 종속적이다.
+그래서 DB를 바꾸면 변환되는 SQl 방언이 다르기에 에러가 나니, 이 점을 유의해서 사용하다.
+ex)
+class MySQLDialect extends Dialect {
+
+	@Override
+	public void initializeFunctionRegistry(FunctionContributions functionContributions) {
+		super.initializeFunctionRegistry(functionContributions);
+
+		CommonFunctionFactory functionFactory = new CommonFunctionFactory(functionContributions);
+
+		functionFactory.soundex();
+		functionFactory.radians();
+		functionFactory.degrees();
+		functionFactory.cot();
+		functionFactory.log();
+		functionFactory.log2();
+		functionFactory.log10();
+		functionFactory.trim2();
+		functionFactory.octetLength();
+		functionFactory.reverse();
+		functionFactory.space();
+		functionFactory.repeat();
+		functionFactory.pad_space();
+		functionFactory.md5();
+		functionFactory.yearMonthDay();
+		functionFactory.hourMinuteSecond();
+		functionFactory.dayofweekmonthyear();
+		functionFactory.weekQuarter();
+		functionFactory.daynameMonthname();
+		functionFactory.lastDay();
+		functionFactory.date();
+		functionFactory.timestamp();
+		time(functionContributions);
+
+		functionFactory.utcDateTimeTimestamp();
+		functionFactory.rand();
+		functionFactory.crc32();
+		functionFactory.sha1();
+		functionFactory.sha2();
+		functionFactory.sha();
+		functionFactory.bitLength();
+		functionFactory.octetLength();
+		functionFactory.ascii();
+		functionFactory.instr();
+		functionFactory.substr();
+		//also natively supports ANSI-style substring()
+		functionFactory.position();
+		functionFactory.nowCurdateCurtime();
+		functionFactory.trunc_truncate();
+		functionFactory.insert();
+		functionFactory.bitandorxornot_operator();
+		functionFactory.bitAndOr();
+		functionFactory.stddev();
+		functionFactory.stddevPopSamp();
+		functionFactory.variance();
+		functionFactory.varPopSamp();
+		functionFactory.datediff();
+		functionFactory.adddateSubdateAddtimeSubtime();
+		functionFactory.format_dateFormat();
+		functionFactory.makedateMaketime();
+		functionFactory.localtimeLocaltimestamp();
+
+        // 생략
+	}
+}
