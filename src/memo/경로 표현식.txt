@@ -1,0 +1,64 @@
+경로 표현식 : 점을 찍어 객체 그래프를 탐색하는 것
+경로 표현식의 3종류
+1. 상태 필드 : 단순히 값을 저장하기 위한 필드
+2. 연관 필드 : 연관 관계가 맺어진 필드
+  단일(1)값 연관 필드 : [@ManyToOne, @OneToMany] 관계에 있는 엔티티
+  컬렉션(多)값 연관 필드 : [@OneToMany, @ManyToMany] 관계에 있는 엔티티
+
+ex)
+select 【m.team】// 상태 필드
+from Member as m
+    join m.team as t // 단일값 연관 필드(Member 객체의 필드 && @ManyToOne 관계의 엔티티)
+    join m.orders as o // 컬렉션 값 연관 필드(Member 객체 필드(컬렉션 형태의 필드) && @OneToMany 관계의 엔티티)
+where t.name = "팀A";
+
+경로 표현식의 종류에 따라, 내부 동작이 다르며 결과가 다르므로, 반드시 구분해서 사용해야 한다.
+-> 정확히는 묵시적 조인 발생 여부와 탐색 여부이다(아래에서 구체적으로 설명할 것이다)
+
+ex)
+// 상태 필드
+select m.username from Member as m
+-> m.username은 상태 필드이고, 더 이상의 탐색을 하지 못한다.
+
+// 단일값 연관 필드
+select m.team from Member as m;
+-> 실제 쿼리문은 이와 같다. "select * from Member 【INNER JOIN】 Team WHERE member.id = team.member_id"
+즉 【묵시적인 조인】이 발생한다.
+저번에도 어디에선가 언급을 하였지만 운영관점에서는 JPQL을 최대한 SQL과 가깝게 작성해야 한다.
+조인의 경우 성능에 영향을 미치고, 튜닝 대상이다. 그런데 JPA에 익숙하지 않은 개발자가 위 JPQL만을 보면 내부적으로 JOIN이
+발생하는 지 파악 못 한다. 그래서 성능 상 문제를 일으킬 가능성이 높다.
+개선 예시)
+select m.team from Member as m inner join Team as t
+그리고 m.team.item처럼 탐색도 가능하다.
+
+// 컬력션값 연관 필드
+-> 이거의 특징은 묵시적 조인이 일어남은 물론 [탐색]이 안 된다는 점이 중요하다.
+※연관 관계가 맺어진 엔티티들은 전부 묵시적 조인이 일어난다.
+ex)
+String jpql = "SELECT t.members FROM Team t";
+-> 순수 SQL 변환(묵시적 조인) : SELECT * FROM Team as t [INNER JOIN] Member as m WHERE m.team_id = t.id;
+위에서도 언급했지만 조인은 반드시 명시하자!!!
+
+컬렉션 값 연관 필드의 문제점 : 더이상의 탐생 불가능
+-> JPQL이 [객체] 중심의 SQL문이였다는 것을 떠올려 보자. 아래의 t.members를 JPQL은 객체로서 다룬다.
+근데 t.members는 Team : Member : 1 : 多　관계이므로 List 등의 컬렉션 형태로 객체가 저장돼 있다.
+자바 입장에서 컬렉션 객체에 경로 표현식, 즉 점을 찍어서 객체를 탐색할 수가 있냐? 못 한다. 왜냐하면 점을 찍어서
+컬렉션에 들어 있는 Member 객체 중 어느 것을 들고 와야 할 지 JPQL 입장에서는 모르기 때문이다.
+그리고 애초에 "List.객체탐색" 같은 문법은 없다. 그래서 JPA는 컬렉션 값 연관 필드의 경우 더 이상의 탐색을 못하게 막아 놓았다.
+예외)
+String jpql = "SELECT t.members.size FROM Team t";
+-> 컬렉션 값 연관 필드의 size는 알 수가 있다. "SELECT t.members.username FROM Team as t" 같이 username 탐색은 안 된다.
+
+Q. 그럼 t.members에서 점을 찍어서(경로 표현식) 탐색을 하고 싶을 떄는?
+A. 명시적 조인을 통해 t.members의 별칭을 얻으면 된다.
+ex) String jpql = "SELECT m.username FROM Team t [INNER JOIN] t.members as m";
+-> 명시적 조인으로 변환을 통해 별칭 m을 얻으면, m.username으로 탐생이 가능해 진다.
+
+실무 팀 : 단일값 연관 필드이던, 컬렉션 값 필드이던 다 무시하고, [묵시적 조인을 절대 쓰지말고 명시적 조인을 사용]
+-> 명시적 조인을 사용하는 순간 위에서 언급한 모~~든 문제들이 해결된다.
+
+
+
+
+
+
