@@ -1,3 +1,14 @@
+사전 지식 : 묵시적 조인이 일어나는 조건!!!
+-> JPQL에서 연관 관계를 맺은 엔티티를 탐색하고 있을 때!
+ex1) select m from Member as m Where m.team.name = '..';
+-> m.team, 즉 Member의 연관관계 엔티티인 Team을 탐색하고 있다. 고로 DB 입장에서는 당연히 JOIN을 해야 하므로 묵시적 조인이 발생을 한다.
+
+ex2) select m from Member m
+-> JPQL에 연관 관계 Team을 탐색하고 있지 않으므로, 묵시적 JOIN은 발생하지 않는다.
+대신 Member 필드 내에 Team에 대해 즉시 로딩 설정이 돼 있으면 묵시적 JOIN을 통해서 Team을 들고 오는 것이 아니라, 추가적은 SELECT문을 통해서 TEam을 들고 온다. 이게 바로 1 + N 문제 발생 원인이다.
+
+
+
 경로 표현식 : 점을 찍어 객체 그래프를 탐색하는 것
 경로 표현식의 3종류
 1. 상태 필드 : 단순히 값을 저장하기 위한 필드

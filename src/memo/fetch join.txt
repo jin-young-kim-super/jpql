@@ -1,0 +1,120 @@
+fetch join 정의 : 단일값 엔티티(@..toOne)와 컬렉션 값 엔티티(@OneToMany 혹은 컬렉션 값 타입)를 1개의 SQL로 한 번에 함꼐 조회하는 기능
+-> JPQL에서 제공하는 성능 최적화 기능이다.
+더 정확히 얘기를 하면, [즉시 로딩/Lazy 로딩] 시 발생하는 N+1문제를 해결하기 위한 최적화 기능!!!
+
+N+1 발생 조건
+1. 연관관계가 존재
+2. 1번의 루트 조회 후
+3. 연관 엔티티를 N번 개별 조회
+
+예시) Member → Team 전제!!!
+
+List<Member> members = em.createQuery(
+    "select m from Member m", Member.class
+).getResultList();
+
+for (Member member : members) {
+    member.getTeam().getName();
+}
+SELECT * FROM member;              // 1번
+
+SELECT * FROM team WHERE id = 1;   // N번
+SELECT * FROM team WHERE id = 2;
+SELECT * FROM team WHERE id = 3;
+...
+→ 1 + N = N+1
+
+
+대표적인 N+1 발생 구조
+LAZY일 때
+Member 조회
+    ↓
+SELECT * FROM member        ← 1
+
+member.getTeam()
+    ↓
+Team이 아직 안 로딩됨 // Team에는 Proxy 객체가 대입됨.
+    ↓
+SELECT * FROM team ...      ← N
+→ N+1
+
+EAGER일 때
+Member 조회
+    ↓
+SELECT * FROM member        ← 1
+    ↓
+【EAGER Team 로딩 필요】  // 이 부분이 LAZY와의 차이점!!!
+    ↓
+SELECT * FROM team ...      ← N
+→ 역시 N+1 가능
+즉 LAZY라서 N+1이 발생하는 게 아니다. LAZY 로딩의 경우, EAGER와는 다르게 개별 조회를 해야지만 N+1문제가 일어나는 차이점이 존재!!!
+**"1번의 루트 엔티티 조회 후, 연관 엔티티를 N번 개별 조회하게 되는 구조"**가 N+1의 본질이다.
+※김영한은 EAGER은 N+1 문제를 일으키므로, 반드시 모두 LAZY 설정을 하라고 했다.
+
+Q. N+1문제가 두려우면 애초에 명시적으로 JOIN을 하던지 애초에 fetch join을 써서 엔티티를 다 들고 오던지 하면 되는 것이 아닐까?
+A. 아니다. 왜냐하면 항상 연관 관계 엔티티를 조회할 필요가 있는 것이 아니기 때문이다. 그래서 관련 엔티티가 필요할 때에는 돋적으로 fetch join을 삽입한다.
+
+동적으로 fetch join 사용하는 예시)
+
+// Qeurydsl 사용
+public List<Member> findMembers(boolean fetchTeam) {
+    JPAQuery<Member> query = queryFactory
+            .selectFrom(member);
+
+    if (fetchTeam) {
+        query.join(member.team, team)
+             .fetchJoin();
+    }
+
+    return query.fetch();
+}
+
+사용법
+// Team 조회 필요 없음
+findMembers(false);
+→
+// fetch join 없음
+SELECT *
+FROM member;
+
+반대로:
+// Team 조회 필요함
+findMembers(true);
+→
+SELECT m.*, t.*
+FROM member m
+JOIN FETCH team t ON m.team_id = t.id;
+
+즉 코드상으로는:
+fetchTeam == false
+    ↓
+Member만 조회
+
+fetchTeam == true
+    ↓
+Member + Team
+    ↓
+JOIN FETCH
+-> 이게 “동적으로 Fetch Join을 사용한다”**는 말의 가장 전형적인 예시
+
+fetch join vs join
+-> 연관 관계를 1개의 SQL만으로로 초기화
+단순 join은
+
+projection
+
+연관 관계에 대한 설정 종료
+1. EAGER
+-> 1개의 SQL문에 대해 N번의 SQL문으로 연관관계 초기화
+2. LAZING
+-> 개별 호출에 의한 연관 관게 초기화(n+1 발생)
+
+3. fetch join
+-> 1개의 SQL문 이외에 그 어떤 추가적인 SQL문 발생x
+※ 연관 관계 엔티티를 반드시 조회할 필요성이 있을 때에 불필요한 추가적인 SQL문 실행 없이 주로 동적인 방법으로 fetch join을 함!!!
+EAGER도 연관 관계 초기화가 자동으로 가능하지만 n+1문제 발생!!!!!.
+
+
+
+String jpql1 = "select m From Member as m join fetch m.team t";
+String jpql2 = "select m, m.team From Member as m join m.team t";
