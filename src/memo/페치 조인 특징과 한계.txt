@@ -1,0 +1,100 @@
+1.페치 조인 대상에는 별칭을 줄 수 없다(하이버네이트는 사용 가능하나, 가급적 사용X)
+-> 우선 JPA에서 별칭의 역할이 무엇이였는지 돌이켜보자!!! JPA는 쿼리문에 별칭을 통해서만 엔티티 등 경로 표현식을 사용할 수 가 있다(ex. m.memberName)
+즉, JPA에서 별칭을 획득하게 되면 경로 표현식을 통해 뭔가를 탐색할 수가 있다.
+
+Q. 그럼 왜 JPA에서는 별칭을 획득해서 경로 표현식을 통해 뭔가를 탐색하는 것을 금지하는 걸까?
+A. 이건 fetch join의 개념과 연결돼 있다. fetch join은 fetch join "모~~든" 대상 엔티티를 연관 관계 초기화를 하는 것이다. 
+그런데 만약 WHRERE m.memberName= "김진영"처럼, 별칭을 허용해 버리면 fetch join의 모든 대상 엔티티를 초기화 못하는 일이 발생할 수가 있다. 
+
+김영한 왈 : 유일하게 fetch join 대상에 자기가 별칭을 쓰는 경우가 있다.
+ex) select t from Team t fetch join t.members m fetch join m.t
+-> 이와 같이 양방향 매핑에 있어서 서로의 연관 관계를 초기화 하고 싶을 때!!!!
+
+2. fetch join에서 컬렉션(多엔티티)는 딱 1개만 지정할 수가 있다.
+-> Team t fetch join t.members t fetch join t.orders 이 JPQL의 fetch join에는
+t.members, t.orders, 즉 컬렉션 2개가 있다.
+우리가 코드에도 살펴 봤듯이 일대다 관계에서 fetch join을 해도 데이터가 뻥튀기 되는데
+이건 지금 1 : 다 : 다 관계이므로, 데이터 뻥튀기가 더 크게 일어 난다. 고로 데이터 정합성 문제가 발생하므로
+fetch join에는 반드시 컬렉션(多엔티티를 딱 1개만 지정)
+
+
+3. 컬렉션을 페치 조인하면 페이징(setFirstResult(), setMaxResult())을 사용할 수 x
+-> 코드에서도 보았듯이 일대다의 경우, 데이터 뼝튀기가 일어나기 때문에 페이징 작업의 결과가 신뢰할 수가 없다.
+그러나 하이버네이트는 경고문을 띄우고, 메모리에서 페이징을 해주나 매우매우매우 위험한 행동이니 절대 하면 안 된다.
+
+ex)
+String jpql = "select t from Team t join fetch t.memers"
+em.createQuery(jpql,Team.class)
+.setFirstResult(0)
+.setMaxResult(10)
+-> SQL 변환된 것을 보면 페이징 처리문이 없고, 아래와 같다. 즉 모~~~~든 Member를 일단 애플리케이션에 다 들고 와서
+메모리에서 그걸 페이징 처리를 하는 것이다. 근데 만약 Team이 만약 100만건이였다면??? 메모리 박살남 ㅠㅠ
+select * from Team inner join Member on team.id = members.team_id
+
+일반적인 해결법
+1. fetch join을 쓰돼 다대일 관계로 가져간다.
+String jpql = "select m from Member m join fetch m.team t"
+-> 페이징에는 문제 없다.
+
+2. Lazy Loading을 적극 이용
+String jpql = "select t from Team t";
+em.createQuery(jpql,Team.class)
+.setFirstResult(0)
+.setMaxResult(10);
+for (Team team : resultList4) {
+    System.out.println("members = " team.getMembers());
+}
+-> 위 쿼리에는 fetch join이 없으므로 정상적으로 페이징 쿼리가 발생한다.
+처음에는 10개의 Team이 조회가 되고 for문에서 각가의 Member 컬렉션을 select문으로
+가져온다.그러나 성능이 안 나온다 ㅠㅠㅠ
+
+
+3. @BatchSize로 해결(이게 가장 좋음)
+ex)
+@Entity
+public class Team {
+
+    @Id@GeneratedValue
+    private Long id;
+    private String name;
+
+    @Batchsize(100)
+    @OneToMany(mappedBy = "team")
+    private List<Member> members = new ArrayList<>();
+
+}
+String jpql = "select t from Team t"; // 컬렉션 fetch join 없앰
+List<Team> = em.createQuery(jpql,Team.class)
+.getFirstResult(0) // 페이징 적용
+.getMaxResult(2)
+getResultList();
+
+위 jpql을 실행하면 두개의 SELECT문이 발생한다.
+1. select * from Team limit 2개
+
+2. List<Team>에서 획득한 TEAM.id를 IN쿼리에 한번에 100개에 넣어서 각 TEam에 대한 MEmber 컬렉션을 조회
+select * from Member where member.team_id in (....);
+
+@BatchSize는 보통 글로벌 적용을 한다.
+ <property name="hibernate.default_batch_fetch_size" value="100"/>
+default_batch_fetch_size
+→ 개별 연관 관계 조회 시 LAZY 로딩이 발생할 때
+→ N+1문제를 문제를 방지하기 위하여 IN (...) 쿼리에 List<Team>에 반화된 TEAM.ID를 넣어서
+MEMBER 연관 관계를 초기화한다.
+
+
+
+fetch join vs @BatchSize
+-> fetch join은 한 번엔 [모든] 연관 관계를 초기화 시키는 것이고, @Batchsize는
+[정해진 개수]만큼의 연관 관계를 IN 쿼리로 초기화한다.
+
+
+
+
+
+
+
+
+
+
+
