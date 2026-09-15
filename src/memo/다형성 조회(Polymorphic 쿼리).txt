@@ -1,0 +1,63 @@
+Item이라는 부모 객체가 있고, BOOK, MOVIE가 자식 객체이며, 상속 관계가 싱글 테이블 전략이라는 가정!!!
+
+다형성 조회의 2가지 방법
+1. TYPE 사용 : 1개 【이상】의 자식 객체를 부모 객체로 조회할 때 사용!
+[JPQL]
+select i from Item i
+where TYPE(i) IN (BOOK,MOVIE)
+
+[SQL]
+select i from Item i
+where i.DTYPE in ("BOOK","MOVIE")
+
+[자바 코드 사용 예시]
+String jpql = """
+    select i
+    from Item i
+    where type(i) in (Book, Movie)
+    """;
+
+// 조회 결과는 List<Item>이지만 실제 객체는 Book 또는 Movie -> 다형성
+List<Item> items = entityManager
+        .createQuery(jpql, Item.class)
+        .getResultList();
+
+for (Item item : items) {
+    System.out.println("item = " + item);
+}
+
+
+2. TREAT 사용 : 【특정】 자식 객체를 부모 객체로 조회할 떄 사용!
+→FROM,WHERE,SELECT에서 사용 가능
+
+[JPQL]
+select i from Item i
+where TREAT(i as BOOK).auther = "KIM";
+
+[SQL]
+select i.* from Item i 
+where i.DTYPE = "B" and i.auther = "KIM";
+
+[자바 코드 사용 예시]
+String jpql = """
+    select i
+    from Item i
+    where treat(i as Book).author = :author
+    """;
+
+// author = "KIM"인 Book 객체만 들어온다
+List<Item> items = entityManager
+        .createQuery(jpql, Item.class)
+        .setParameter("author", "KIM")
+        .getResultList();
+
+for (Item item : items) {
+    System.out.println("item = " + item);
+}
+
+
+위 2가지 방법을 애플리케이션 코드에서 어떻게 조회하는지 코드 예시 ㄱㄱ
+
+
+
+
